@@ -1,14 +1,24 @@
 module System.Watcher.MoveFiles
-  ( moveFiles
-  , moveDir
+  ( moveDir
   ) where
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (traverse_)
+import Filesystem.Path.CurrentOS (encodeString)
+import System.Directory (createDirectory, getDirectoryContents, renameFile)
+import System.FilePath ((</>), replaceDirectory)
+import System.IO.Error (catchIOError)
 
 import qualified Turtle
 
-moveFiles :: [Turtle.FilePath] -> Turtle.FilePath -> IO ()
-moveFiles files to = traverse_ (flip Turtle.mv to) files
+moveDir :: MonadIO io => Turtle.FilePath -> Turtle.FilePath -> io ()
+moveDir src dst = liftIO $ do
+    catchIOError (createDirectory dst') (const $ return ()) -- ignore error
+    traverse_ (flip moveToDir dst') =<< map (src' </>). filter f <$> getDirectoryContents src'
+  where
+    f n = n /= "." && n /= ".."
+    src' = encodeString src
+    dst' = encodeString dst
 
-moveDir :: Turtle.FilePath -> Turtle.FilePath -> IO ()
-moveDir = Turtle.mv
+moveToDir :: FilePath -> FilePath -> IO ()
+moveToDir src dst = renameFile src (replaceDirectory src dst)

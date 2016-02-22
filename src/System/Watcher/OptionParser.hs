@@ -1,16 +1,14 @@
 module System.Watcher.OptionParser where
 
-import Data.ByteString (ByteString)
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.String (fromString)
 import Options.Applicative
 import Network.Kafka (KafkaState, mkKafkaState)
-import Network.Kafka.Protocol (Host, Port)
+import Network.Kafka.Protocol (Host, Port, TopicName)
 
 import System.Watcher.Types
 
 import qualified Control.Monad.Log as Log
-import qualified Data.ByteString.Char8 as B8
 import qualified Turtle
 
 parseConfig :: Parser Config
@@ -45,15 +43,20 @@ parseSeverity = fromMaybe defaultSeverity . listToMaybe . catMaybes <$>
     min' :: (Bounded a, Enum a) => a -> Int -> Int
     min' a = min (fromEnum a)
 
-
 parseMoveConfig :: Parser [MoveConfig]
-parseMoveConfig = fmap (map (uncurry3 MoveConfig)) $ zip3
-  <$> some (parseADir "watch" 'w' "directory to watch")
-  <*> some (parseADir "move" 'm' "directory to move files to")
-  <*> some parseTopic
-  where
-    uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-    uncurry3 f (a,b,c) = f a b c
+parseMoveConfig = some $ MoveConfig
+  <$> parseADir "watch" 'w' "directory to watch"
+  <*> optional (parseADir "move" 'm' "directory to move files to")
+  <*> optional parseTopic
+
+-- parseMoveConfig :: Parser [MoveConfig]
+-- parseMoveConfig = fmap (map (uncurry3 MoveConfig)) $ zip3
+--   <$> some (parseADir "watch" 'w' "directory to watch")
+--   <*> some (parseADir "move" 'm' "directory to move files to")
+--   <*> some parseTopic
+--   where
+--     uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+--     uncurry3 f (a,b,c) = f a b c
 
 
 parseADir :: String -> Char -> String -> Parser Turtle.FilePath
@@ -64,8 +67,8 @@ parseADir optName optShort helptext = fromString <$>
               <> help helptext
               )
 
-parseTopic :: Parser ByteString
-parseTopic = B8.pack <$>
+parseTopic :: Parser TopicName
+parseTopic = fromString <$>
     strOption (  long "topic"
               <> short 't'
               <> metavar "TOPIC"
