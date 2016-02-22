@@ -10,6 +10,8 @@ module System.Watcher.Log
   , mapLogMessageM
 #endif
   , discardUpToHandler
+  , unw
+  , pair
   ) where
 
 import System.Watcher.Types
@@ -19,7 +21,7 @@ import Text.PrettyPrint.Leijen.Text (Doc, text)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Format (defaultTimeLocale, formatTime, iso8601DateFormat)
-import Turtle (format, s, w, (%))
+import Turtle (Format, makeFormat, format, s, w, (%))
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
@@ -64,17 +66,15 @@ class RenderLogEntry a where
 
 instance RenderLogEntry LogEntry where
     render (LogEntry msg' additional) =
-        (format ("msg=\""%s%"\"") msg'):additionals
-      where
-        format' = format (s%"=\""%s%"\"")
-        additionals = map (uncurry format') (Map.toList additional)
+        map (format (pair s)) $ ("msg", msg'):Map.toList additional
 
 instance RenderLogEntry a => RenderLogEntry (WithSeverity a) where
-    render (WithSeverity sev a) = format ("sev="%w) sev : render a
+    render (WithSeverity sev a) =
+        format (pair w) ("sev", show sev) : render a
 
 instance RenderLogEntry a => RenderLogEntry (WithTimestamp a) where
     render (WithTimestamp a ts) =
-        format ("time="%s) (formatTime' ts) : render a
+        format (pair s) ("time", formatTime' ts) : render a
       where
         formatTime' = Text.pack
                     . formatTime defaultTimeLocale
@@ -82,3 +82,9 @@ instance RenderLogEntry a => RenderLogEntry (WithTimestamp a) where
 
 renderLogEntry :: RenderLogEntry a => a -> Doc
 renderLogEntry = text . fromStrict . Text.intercalate " " . render
+
+unw :: Format Text (b -> Text) -> Format r ([b] -> r)
+unw f = makeFormat $ Text.unwords . map (format f)
+
+pair :: Format Text (b -> Text) -> Format r ((Text, b) -> r)
+pair f = makeFormat $ uncurry (format (s%"=\""%f%"\""))
