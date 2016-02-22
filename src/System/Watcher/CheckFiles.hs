@@ -4,6 +4,8 @@ module System.Watcher.CheckFiles
   ( checkDir
   , parseShellCmd
   , sha256sumChecker
+  , CommandFailedWith(..)
+  , unw
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -82,3 +84,6 @@ sha256sumChecker = DirChecker $ \dir ->
     args :: Turtle.FilePath -> [String]
     args dir = ["--strict", "--quiet", "-c"
                , encodeString (dir </> "sha256sum.txt")]
+
+unw :: Turtle.Format Text (b -> Text) -> Turtle.Format r ([b] -> r)
+unw f = Turtle.makeFormat $ Text.unwords . map (Turtle.format f)
