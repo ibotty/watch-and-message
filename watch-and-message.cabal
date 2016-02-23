@@ -36,9 +36,11 @@ library
         filepath,
         directory,
         text -any,
+        stm -any,
+        hashable -any,
         exceptions -any,
         system-filepath -any,
-        containers -any,
+        unordered-containers -any,
         logging-effect >=1.1 && <1.2,
         bytestring -any,
         optparse-applicative -any,
@@ -70,7 +72,7 @@ executable watch-announce-daemon
         mtl -any,
         transformers-base -any,
         system-filepath -any,
-        containers -any,
+        unordered-containers -any,
         monad-control -any,
         exceptions -any
     default-language: Haskell2010

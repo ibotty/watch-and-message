@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Prelude hiding (FilePath)
+import Control.Arrow ((&&&))
 import Control.Monad (when)
 import Control.Monad.Base (liftBase)
 import Control.Monad.Catch (MonadCatch, MonadThrow, catch)
@@ -35,12 +36,15 @@ main = do
     runLog (loglevel config) . flip evalStateT (kafkaConfig config) $ do
         traverse_ (logInfo . renderWhatToDo) $ moveConfig config
         logDebug $ LogEntry "Starting" [("config", repr config)]
-        case moveConfig config of
+        case filter somethingToDo (moveConfig config) of
           [] -> do
               logWarning "nothing to do, exiting"
               liftBase exitSuccess
-          mcs -> watchWriteClosedFilesInThread mcs inotifyHandler
+          mcs -> watchManyClosedFilesRecursively $
+                     map (dirToWatch &&& inotifyHandler) mcs
   where
+    somethingToDo (MoveConfig _ Nothing Nothing) = False
+    somethingToDo _                              = True
     runLog logLevel a = withFDHandler defaultBatchingOptions stderr 0.4 80 $
         \logHandler -> runLoggingT a
             (discardUpToHandler logLevel (logHandler . renderLogEntry))
@@ -60,7 +64,7 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
     for_ mTopic $ \topic -> do
         logInfo $ LogEntry "AnnouncingFilesInDir" [ ("dir", format fp dir)
                                         , ("topic", repr topic)]
-        messages <- map mkMessage <$> ls dir
+        messages <- map Message <$> ls dir
         announce topic messages
   where
     handler (CommandFailedWith cmd args cwd exitCode) =
@@ -69,7 +73,6 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
                               , ("cwd", repr cwd)
                               , ("exitCode", repr exitCode)]
     dir = dirToWatch config
-    mkMessage = Message
 
 ls :: MonadIO m => FilePath -> m [Text]
 ls d = liftIO $ map Text.pack . filter f <$> getDirectoryContents (show d)

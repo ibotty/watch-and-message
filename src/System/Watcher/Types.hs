@@ -6,7 +6,7 @@ module System.Watcher.Types
 
 import Prelude hiding (FilePath)
 import Data.Aeson (ToJSON, FromJSON, toEncoding, genericToEncoding, defaultOptions)
-import Data.Map (Map)
+import Data.HashMap.Strict (HashMap)
 import Data.String (IsString, fromString)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -29,9 +29,9 @@ data Config = Config { moveConfig :: [MoveConfig]
   deriving (Show)
 
 data LogEntry = LogEntry { msg :: Text
-                         , additionalFields :: Map Text Text
+                         , additionalFields :: HashMap Text Text
                          }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq)
 
 instance IsString LogEntry where
     fromString s = LogEntry (fromString s) []

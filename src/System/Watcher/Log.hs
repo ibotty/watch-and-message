@@ -22,7 +22,7 @@ import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Format (defaultTimeLocale, formatTime, iso8601DateFormat)
 import Turtle (Format, makeFormat, format, s, w, (%))
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
 import Control.Monad (when)
@@ -66,7 +66,7 @@ class RenderLogEntry a where
 
 instance RenderLogEntry LogEntry where
     render (LogEntry msg' additional) =
-        map (format (pair s)) $ ("msg", msg'):Map.toList additional
+        map (format (pair s)) $ ("msg", msg'):HashMap.toList additional
 
 instance RenderLogEntry a => RenderLogEntry (WithSeverity a) where
     render (WithSeverity sev a) =
