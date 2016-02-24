@@ -25,6 +25,7 @@ import Control.Monad (forever, void, when)
 import Control.Monad.Base (liftBase)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Control (MonadBaseControl)
+import Data.Monoid ((<>))
 import Data.Foldable (traverse_)
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
@@ -100,9 +101,10 @@ setupWatch'
   -> Action io
   -> io ()
 setupWatch' wState file mask' action =
-    addWatch' wState file mask' (action >> const action')
+    addWatch' wState file combinedMask (action >> const action')
   where
-    action' event = when (in_CREATE == mask event) $
+    combinedMask = mask' <> in_CREATE
+    action' event = when (in_CREATE `hasOverlap` mask event) $
         addSubdirWatch wState mask' action file event
 
 loop :: (MonadBaseControl IO io, MonadThrow io) => WatcherState io -> io ()

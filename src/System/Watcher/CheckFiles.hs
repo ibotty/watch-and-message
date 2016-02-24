@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 module System.Watcher.CheckFiles
   ( checkDir
@@ -14,8 +16,9 @@ import Data.Text (Text)
 import Filesystem.Path.CurrentOS (encodeString)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (createProcess, cwd, proc, waitForProcess)
--- import System.Directory (getDirectoryContents)
-import Turtle ((</>))
+import System.Watcher.Types
+import System.Watcher.Log
+import Turtle (format, fp)
 
 import qualified Data.Text as Text
 import qualified Turtle
@@ -41,10 +44,10 @@ data FilesChecker m =
 
 -- | checkDir runs the DirChecker and throws a 'Turtle.ProcFailed' for
 -- non-zero exit codes.
-checkDir :: MonadIO io => FilesChecker io -> Turtle.FilePath -> io ()
+checkDir
+  :: (MonadLog (WithSeverity LogEntry) io, MonadIO io)
+  => FilesChecker io -> Turtle.FilePath -> io ()
 checkDir (DirChecker cmd) dir = cmd dir
---checkDir (FilesChecker cmd) dir = ls dir >>= cmd
---    flip Turtle.shells (return mempty) $ cmd [dir </> "/"]
 checkDir (ManyChecks mkChecker) file =
     traverse_ (flip checkDir file) =<< mkChecker file
 
@@ -69,17 +72,19 @@ parseShellCmd :: Text -> [Text]
 parseShellCmd = Text.words
 
 -- TODO: specify CWD
-sha256sumChecker :: (MonadThrow m, MonadIO m) => FilesChecker m
-sha256sumChecker = DirChecker $ \dir ->
+sha256sumChecker
+  :: (MonadThrow m, MonadIO m, MonadLog (WithSeverity LogEntry) m)
+  => FilesChecker m
+sha256sumChecker = DirChecker $ \dir -> do
+    logDebug $ LogEntry "runCommand" [("cmd", format (unw Turtle.w) args), ("cwd", format fp dir)]
     liftIO (createAndWait dir) >>= \case
       ExitSuccess -> return ()
       e           -> throwM (exc dir e)
   where
-    exc dir = CommandFailedWith "sha256sum" (args dir) (show dir)
+    exc dir = CommandFailedWith "sha256sum" args (show dir)
     createAndWait dir = do
         (_, _, _, handle) <- createProcess (procSpec dir)
         waitForProcess handle
-    procSpec dir = (proc "sha256sum" (args dir)) { cwd = Just (encodeString dir) }
-    args :: Turtle.FilePath -> [String]
-    args dir = ["--strict", "--quiet", "-c"
-               , encodeString (dir </> "sha256sum.txt")]
+    procSpec dir = (proc "sha256sum" args) { cwd = Just (encodeString dir) }
+    args = ["--strict", "--quiet", "-c"
+           , encodeString "sha256sum.txt"]

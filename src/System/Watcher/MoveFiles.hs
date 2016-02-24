@@ -1,5 +1,5 @@
 module System.Watcher.MoveFiles
-  ( moveDir
+  ( moveDirectory
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -11,8 +11,8 @@ import System.IO.Error (catchIOError)
 
 import qualified Turtle
 
-moveDir :: MonadIO io => Turtle.FilePath -> Turtle.FilePath -> io ()
-moveDir src dst = liftIO $ do
+moveDirectory :: MonadIO io => Turtle.FilePath -> Turtle.FilePath -> io ()
+moveDirectory src dst = liftIO $ do
     catchIOError (createDirectory dst') (const $ return ()) -- ignore error
     traverse_ (flip moveToDir dst') =<< map (src' </>). filter f <$> getDirectoryContents src'
   where

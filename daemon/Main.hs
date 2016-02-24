@@ -19,7 +19,7 @@ import System.Exit (exitSuccess)
 import System.Directory (getDirectoryContents)
 import System.IO (stderr)
 import System.Watcher
-import Turtle (FilePath, repr, format, fp, w)
+import Turtle ((</>), FilePath, repr, format, fp, w)
 
 import qualified Data.Text as Text
 import qualified Filesystem.Path as Path
@@ -55,16 +55,17 @@ inotifyHandler
 inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
                            . flip catch handler $ do
     logDebug $ LogEntry "closeEvent" [("file", format fp file)]
-    checkDir sha256sumChecker (dirToWatch config)
+    checkDir sha256sumChecker (Path.directory file)
     let MoveConfig _ mMoveTo mTopic = config
     for_ mMoveTo $ \moveTo -> do
-        logInfo $ LogEntry "Moving" [ ("dir", format fp dir)
-                                    , ("moveTo", format fp moveTo)]
-        moveDir dir moveTo
+        let moveDir = moveTo </> relDir
+        logInfo $ LogEntry "Moving" [ ("dir", format fp watchDir)
+                                    , ("moveTo", format fp moveDir)]
+        moveDirectory watchDir moveDir
     for_ mTopic $ \topic -> do
-        logInfo $ LogEntry "AnnouncingFilesInDir" [ ("dir", format fp dir)
+        logInfo $ LogEntry "AnnouncingFilesInDir" [ ("dir", format fp relDir)
                                         , ("topic", repr topic)]
-        messages <- map Message <$> ls dir
+        messages <- map Message <$> ls relDir
         announce topic messages
   where
     handler (CommandFailedWith cmd args cwd exitCode) =
@@ -72,7 +73,8 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
                               [ ("cmd", format (unw w) (cmd:args))
                               , ("cwd", repr cwd)
                               , ("exitCode", repr exitCode)]
-    dir = dirToWatch config
+    watchDir = dirToWatch config </> relDir
+    relDir = Path.dirname file
 
 ls :: MonadIO m => FilePath -> m [Text]
 ls d = liftIO $ map Text.pack . filter f <$> getDirectoryContents (show d)
