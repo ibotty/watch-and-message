@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
 import Prelude hiding (FilePath)
 import Control.Arrow ((&&&))
+import Control.Exception (SomeException, displayException)
 import Control.Monad (when)
 import Control.Monad.Base (liftBase)
 import Control.Monad.Catch (MonadCatch, MonadThrow, catch)
@@ -15,7 +17,7 @@ import Data.Foldable (for_, traverse_)
 import Data.Text (Text)
 import Data.Monoid ((<>))
 import Options.Applicative (ParserInfo, execParser, fullDesc, info, progDesc, helper)
-import System.Exit (exitSuccess)
+import System.Exit (exitSuccess, exitFailure)
 import System.Directory (getDirectoryContents)
 import System.IO (stderr)
 import System.Watcher
@@ -33,7 +35,8 @@ opts = info (helper <*> parseConfig)
 main :: IO ()
 main = do
     config <- execParser opts
-    runLog (loglevel config) . flip evalStateT (kafkaConfig config) $ do
+    runLog (loglevel config) . flip evalStateT (kafkaConfig config)
+                             . flip catch logErrorHandler $ do
         traverse_ (logInfo . renderWhatToDo) $ moveConfig config
         logDebug $ LogEntry "Starting" [("config", repr config)]
         case filter somethingToDo (moveConfig config) of
@@ -43,6 +46,10 @@ main = do
           mcs -> watchManyClosedFilesRecursively $
                      map (dirToWatch &&& inotifyHandler) mcs
   where
+    logErrorHandler (e :: SomeException) = do
+        logError $ LogEntry "unhandledError"
+                            [("error", Text.pack (displayException e))]
+        liftIO exitFailure
     somethingToDo (MoveConfig _ Nothing Nothing) = False
     somethingToDo _                              = True
     runLog logLevel a = withFDHandler defaultBatchingOptions stderr 0.4 80 $
