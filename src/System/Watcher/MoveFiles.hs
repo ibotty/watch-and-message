@@ -29,13 +29,6 @@ renameDirectory' src' dst' = do
   where
     f n = n /= "." && n /= ".."
 
-catchUnsupported :: IO a -> IO a -> IO a
-catchUnsupported action ifFailedAction =
-    catchIOError action handler
-  where
-    handler (ioeGetErrorType -> UnsupportedOperation) = ifFailedAction
-    handler ioe                                       = ioError ioe
-
 moveToDir :: FilePath -> FilePath -> IO ()
 moveToDir src dst =
     catchUnsupported (renameFile src dstFile) $ do
@@ -43,3 +36,10 @@ moveToDir src dst =
         removeFile src
   where
     dstFile = replaceDirectory src dst
+
+catchUnsupported :: IO a -> IO a -> IO a
+catchUnsupported action ifFailedAction = catchIOError action handler
+  where
+    handler (ioeGetErrorType -> UnsupportedOperation) = ifFailedAction
+    handler ioe                                       = ioError ioe
+
