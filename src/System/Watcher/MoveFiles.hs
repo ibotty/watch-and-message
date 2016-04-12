@@ -7,8 +7,9 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (traverse_)
 import Filesystem.Path.CurrentOS (encodeString)
 import GHC.IO.Exception (IOErrorType(UnsupportedOperation))
-import System.Directory (createDirectory, copyFile, renameDirectory
-                        , removeFile , getDirectoryContents, renameFile)
+import System.Directory (createDirectory, copyFile, removeDirectory
+                        , renameDirectory, removeFile , getDirectoryContents
+                        , renameFile)
 import System.FilePath ((</>), replaceDirectory)
 import System.IO.Error (catchIOError, ioeGetErrorType)
 
@@ -26,6 +27,7 @@ renameDirectory' src' dst' = do
     createDirectory dst' `catchUnsupported` return ()
     files <- map (src' </>). filter f <$> getDirectoryContents src'
     traverse_ (flip moveToDir dst') files
+    removeDirectory src'
   where
     f n = n /= "." && n /= ".."
 
@@ -42,4 +44,3 @@ catchUnsupported action ifFailedAction = catchIOError action handler
   where
     handler (ioeGetErrorType -> UnsupportedOperation) = ifFailedAction
     handler ioe                                       = ioError ioe
-
