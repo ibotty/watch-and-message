@@ -63,18 +63,20 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
                            . flip catch handler $ do
     logDebug $ LogEntry "closeEvent" [("file", format fp file)]
     checkDir sha256sumChecker (Path.directory file)
-    let MoveConfig _ mMoveTo mTopic = config
+    filesInDir <- ls watchDir
+
     for_ mMoveTo $ \moveTo -> do
         let moveDir = moveTo </> relDir
         logInfo $ LogEntry "Moving" [ ("dir", format fp watchDir)
                                     , ("moveTo", format fp moveDir)]
         moveDirectory watchDir moveDir
     for_ mTopic $ \topic -> do
+        let messages = map Message filesInDir
         logInfo $ LogEntry "AnnouncingFilesInDir" [ ("dir", format fp relDir)
-                                        , ("topic", repr topic)]
-        messages <- map Message <$> ls relDir
+                                                  , ("topic", repr topic)]
         announce topic messages
   where
+    MoveConfig _ mMoveTo mTopic = config
     handler (CommandFailedWith cmd args cwd exitCode) =
         logWarning $ LogEntry "checksumInvalid"
                               [ ("cmd", format (unw w) (cmd:args))
