@@ -12,6 +12,7 @@ module System.Watcher.CheckFiles
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Catch (Exception, MonadThrow, displayException, throwM)
 import Data.Foldable (traverse_)
+import Data.String (IsString)
 import Data.Text (Text)
 import Filesystem.Path.CurrentOS (encodeString)
 import System.Exit (ExitCode(ExitSuccess))
@@ -82,11 +83,12 @@ sha256sumChecker = DirChecker $ \dir -> do
       ExitSuccess -> return ()
       e           -> throwM (exc dir e)
   where
-    exc dir = CommandFailedWith cmd args (show dir)
+    exc dir = CommandFailedWith cmd args (encodeString dir)
     createAndWait dir = do
         (_, _, _, handle) <- createProcess (procSpec dir)
         waitForProcess handle
     procSpec dir = (proc cmd args) { cwd = Just (encodeString dir) }
+    cmd :: IsString a => a
     cmd = "sha256sum"
     args = ["--strict", "--quiet", "-c"
            , encodeString "sha256sum.txt"]

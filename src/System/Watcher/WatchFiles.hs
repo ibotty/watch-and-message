@@ -18,6 +18,7 @@ module System.Watcher.WatchFiles
 
 import Prelude hiding (init)
 
+import Control.Applicative (liftA2)
 import Control.Concurrent.Lifted (fork)
 import Control.Concurrent.STM (STM, TVar, atomically, newTVarIO, readTVarIO, modifyTVar')
 import Control.Exception (Exception, displayException)
@@ -67,7 +68,6 @@ watchClosedFilesRecursively
 watchClosedFilesRecursively file action =
     watchManyClosedFilesRecursively [(file, action)]
 
-
 addClosedRecursiveWatch
   :: (MonadBaseControl IO io, MonadLog (WithSeverity LogEntry) io, MonadThrow io)
   => WatcherState io
@@ -101,11 +101,11 @@ setupWatch'
   -> Action io
   -> io ()
 setupWatch' wState file mask' action =
-    addWatch' wState file combinedMask (action >> const action')
+    addWatch' wState file combinedMask (\f -> action f >> action')
   where
     combinedMask = mask' <> in_CREATE
     action' event = when (in_CREATE `hasOverlap` mask event) $
-        addSubdirWatch wState mask' action file event
+        addSubdirWatch wState mask' action (file </> getRelPath event)
 
 loop :: (MonadBaseControl IO io, MonadThrow io) => WatcherState io -> io ()
 loop (inotify, watchRef) = forever $ liftBase (getEvent inotify) >>= action'
@@ -120,14 +120,12 @@ addSubdirWatch
   => WatcherState io
   -> Mask WatchFlag
   -> Action io
-  -> Turtle.FilePath -> Event -> io ()
-addSubdirWatch wState mask' action directory event = do
-    exists <- liftBase $ doesDirectoryExist (FilePath.encodeString file)
+  -> Turtle.FilePath -> io ()
+addSubdirWatch wState mask' action dir = do
+    exists <- liftBase $ doesDirectoryExist (FilePath.encodeString dir)
     when exists $ do
-      logDebug $ LogEntry "addSubdirWatch" [("dir", format fp file)]
-      addWatch' wState file mask' action
-  where
-    file = directory </> getRelPath event
+      logDebug $ LogEntry "addSubdirWatch" [("dir", format fp dir)]
+      addWatch' wState dir mask' action
 
 -- | Spawns a new thread to process the 'Event'.
 threaded :: MonadBaseControl IO io => (a -> io ()) -> a -> io ()
@@ -136,11 +134,23 @@ threaded action = void . fork . action
 addWatch'
   :: MonadBaseControl IO io
   => WatcherState io -> Turtle.FilePath -> Mask WatchFlag -> Action io -> io ()
-addWatch' (inotify, watchRef) file mask' action = do
+addWatch' wState@(inotify, watchRef) file mask' action = do
     watch <- liftBase $ addWatch inotify file' mask'
-    atomically' $ modifyTVar' watchRef (HashMap.insertWith (>>) watch (action file))
+    let removeWatchAction event =
+            when (deleteMask `hasOverlap` mask event) $
+                removeWatch wState watch
+        action' f = action f >> removeWatchAction
+    atomically' $ modifyTVar' 
+                      watchRef 
+                      (HashMap.insertWith (liftA2 (>>)) watch (action' file))
   where
     file' = FilePath.encodeString file
+    deleteMask = in_DELETE_SELF <> in_MOVE_SELF
+    
+removeWatch :: MonadBaseControl IO io => WatcherState io -> Watch -> io ()
+removeWatch (inotify, watchRef) watch = do
+    atomically' $ modifyTVar' watchRef (HashMap.delete watch)
+    liftBase $ rmWatch inotify watch
 
 getRelPath :: Event -> Turtle.FilePath
 getRelPath = FilePath.decode . name
