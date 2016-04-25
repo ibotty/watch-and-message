@@ -71,20 +71,22 @@ checkDir (ManyChecks mkChecker) file =
 parseShellCmd :: Text -> [Text]
 parseShellCmd = Text.words
 
--- TODO: specify CWD
 sha256sumChecker
   :: (MonadThrow m, MonadIO m, MonadLog (WithSeverity LogEntry) m)
   => FilesChecker m
 sha256sumChecker = DirChecker $ \dir -> do
-    logDebug $ LogEntry "runCommand" [("cmd", format (unw Turtle.w) args), ("cwd", format fp dir)]
+    logDebug $ LogEntry "runCommand" [("cmd", cmd)
+                                     , ("args", format (unw Turtle.w) args)
+                                     , ("cwd", format fp dir)]
     liftIO (createAndWait dir) >>= \case
       ExitSuccess -> return ()
       e           -> throwM (exc dir e)
   where
-    exc dir = CommandFailedWith "sha256sum" args (show dir)
+    exc dir = CommandFailedWith cmd args (show dir)
     createAndWait dir = do
         (_, _, _, handle) <- createProcess (procSpec dir)
         waitForProcess handle
-    procSpec dir = (proc "sha256sum" args) { cwd = Just (encodeString dir) }
+    procSpec dir = (proc cmd args) { cwd = Just (encodeString dir) }
+    cmd = "sha256sum"
     args = ["--strict", "--quiet", "-c"
            , encodeString "sha256sum.txt"]
