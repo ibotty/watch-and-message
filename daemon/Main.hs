@@ -17,6 +17,7 @@ import Data.Foldable (for_, traverse_)
 import Data.Text (Text)
 import Data.Monoid ((<>))
 import Options.Applicative (ParserInfo, execParser, fullDesc, info, progDesc, helper)
+import Filesystem.Path.CurrentOS (encodeString)
 import System.Exit (exitSuccess, exitFailure)
 import System.Directory (getDirectoryContents)
 import System.IO (stderr)
@@ -86,6 +87,6 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
     relDir = Path.dirname file
 
 ls :: MonadIO m => FilePath -> m [Text]
-ls d = liftIO $ map Text.pack . filter f <$> getDirectoryContents (show d)
+ls d = liftIO $ map Text.pack . filter f <$> getDirectoryContents (encodeString d)
   where
     f n = n /= "." && n /= ".." && n /= "sha256sum.txt"
