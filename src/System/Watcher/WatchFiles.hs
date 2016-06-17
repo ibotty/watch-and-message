@@ -139,7 +139,8 @@ addWatch' wState@(inotify, watchRef) file mask' action = do
     let removeWatchAction event =
             when (deleteMask `hasOverlap` mask event) $
                 removeWatch wState watch
-        action' f = action f >> removeWatchAction
+        action' f event =
+            action f event >> removeWatchAction event
     atomically' $ modifyTVar' 
                       watchRef 
                       (HashMap.insertWith (liftA2 (>>)) watch (action' file))
