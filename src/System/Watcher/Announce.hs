@@ -3,6 +3,7 @@ module System.Watcher.Announce
   ( announce
   , mkKafkaState
   , KafkaState
+  , KafkaClientError(..)
   , TopicName
   ) where
 

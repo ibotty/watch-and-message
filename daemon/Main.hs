@@ -75,7 +75,7 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
         let messages = map Message filesInDir
         logInfo $ LogEntry "AnnouncingFilesInDir" [ ("dir", format fp relDir)
                                                   , ("topic", repr topic)]
-        announce topic messages
+        announce topic messages `catch` kafkaHandler
   where
     MoveConfig _ mMoveTo mTopic = config
     handler (CommandFailedWith cmd args cwd exitCode) =
@@ -85,6 +85,8 @@ inotifyHandler config file = when (Path.filename file == "sha256sum.txt")
                               , ("exitCode", repr exitCode)]
     watchDir = dirToWatch config </> relDir
     relDir = Path.dirname file
+    kafkaHandler (e :: KafkaClientError) = logError $
+        LogEntry "KafkaError" [("exception", format w e)]
 
 ls :: MonadIO m => FilePath -> m [Text]
 ls d = liftIO $ map Text.pack . filter f <$> getDirectoryContents (encodeString d)
